@@ -14,7 +14,6 @@ const LoginView = ({ onLogin, onShowRegister }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showMfa, setShowMfa] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [devMfaCode, setDevMfaCode] = useState('');
   const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   const handleInputChange = (e) => {
@@ -32,19 +31,18 @@ const LoginView = ({ onLogin, onShowRegister }) => {
           password: formData.password,
         });
 
-        const { userId: returnedUserId, mfaCode: returnedMfaCode } = res;
+        const { userId } = res;
 
-        if (!returnedUserId || !returnedMfaCode) {
-          alert('Login response missing userId or mfaCode');
+        if (!userId) {
+          alert('Login response missing userId');
           return;
         }
 
-        setUserId(returnedUserId);
-        setDevMfaCode(returnedMfaCode);
+        setUserId(userId);
         setShowMfa(true);
 
         setTimeout(() => {
-          alert(`Password correct.\nDev MFA Code: ${returnedMfaCode}`);
+          alert('Password correct. Check your test email (e.g., Yopmail) for the OTP code.');
         }, 100);
       } else {
         const res = await API.post('/auth/mfa', {
@@ -172,11 +170,9 @@ const LoginView = ({ onLogin, onShowRegister }) => {
                   placeholder="Enter 6-digit code"
                   required
                 />
-                {devMfaCode && (
-                  <p className="text-xs mt-2 text-orange-500">
-                    ⚠️ Dev MFA Code: <strong>{devMfaCode}</strong>
-                  </p>
-                )}
+                <p className="text-xs mt-2 text-orange-500">
+                  Check your test email (e.g., Yopmail) for the 6-digit OTP code.
+                </p>
               </div>
             )}
 
