@@ -6,12 +6,12 @@ import Sidebar from "../components/SideBar";
 import SwapRequests from "../components/SwapRequest";
 import Toast from "../components/Toast";
 import TransactionsView from "../components/TransactionView";
-import Messages from "../components/ViewMessages"; // New Messages component
+import Messages from "../components/ViewMessages";
 
 const MainPage = () => {
     const [toast, setToast] = useState(null);
     const [activeView, setActiveView] = useState("dashboard");
-    const [darkMode, setDarkMode] = useState(true);
+    const [darkMode, setDarkMode] = useState(false); // Changed to false for light mode
     const [newTransaction, setNewTransaction] = useState(null);
 
     const showToast = (message, type = "info") => {
