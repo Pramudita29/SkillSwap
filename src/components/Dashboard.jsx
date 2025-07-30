@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRightLeft, Award, Filter, Moon, Plus, Sun, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import api from '../utils/api'; // Axios instance
+import api from '../utils/api';
 import SkillCard from './SkillCard';
 import StatsCard from './StatsCard';
 
@@ -30,6 +30,20 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
   });
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Define wantsSkill mapping for consistent display
+  const wantsSkillMap = {
+    frontend: 'Frontend Development',
+    backend: 'Backend Development',
+    graphicDesign: 'Graphic Design',
+    seo: 'SEO',
+    marketing: 'Digital Marketing',
+    dataAnalysis: 'Data Analysis',
+    contentWriting: 'Content Writing',
+    javascript: 'JavaScript',
+    python: 'Python',
+    uiuxDesign: 'UI/UX Design',
+  };
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -55,7 +69,7 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
     setLoadingSkills(true);
     api.get('/skills')
       .then((data) => {
-        console.log('Fetched skills:', data); // Log raw skills data
+        console.log('Fetched skills:', data);
         const filteredSkills = data.filter((skill) => {
           const postedBy = typeof skill.userId === 'string' ? skill.userId : skill.userId?._id;
           return postedBy !== currentUserId;
@@ -66,18 +80,18 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
             id: skill._id,
             title: skill.title,
             user: skill.name || 'Unknown',
-            avatar: skill.name ? skill.name[0].toUpperCase() : skill.title[0].toUpperCase(), // Use initial of name
+            avatar: skill.name ? skill.name[0].toUpperCase() : skill.title[0].toUpperCase(),
             rating: skill.rating || 4.5,
-            category: skill.category || [],
+            category: skill.category.map((cat) => cat.charAt(0).toUpperCase() + cat.slice(1)),
             offeredSkill: skill.offeredSkill || [],
-            wantsSkill: skill.wantsSkill || [],
+            wantsSkill: skill.wantsSkill.map((ws) => wantsSkillMap[ws] || ws),
             description: skill.description,
             location: skill.location || 'Unknown',
             timeAgo: skill.createdAt ? new Date(skill.createdAt).toLocaleDateString() : '',
             postedById,
           };
         });
-        console.log('Mapped skills:', mappedSkills); // Log mapped skills
+        console.log('Mapped skills:', mappedSkills);
         setSkills(mappedSkills);
         setErrorSkills('');
       })
@@ -121,7 +135,7 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
   const filteredSkills = skills.filter(
     (skill) =>
       skill.title.toLowerCase().includes(debouncedSearch.toLowerCase()) &&
-      (filterCategory === 'all' || skill.category.includes(filterCategory))
+      (filterCategory === 'all' || skill.category.includes(filterCategory.charAt(0).toUpperCase() + filterCategory.slice(1)))
   );
 
   // Handle initiating swap request
@@ -164,6 +178,7 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
 
   const closePostSkillModal = () => {
     setShowPostSkillModal(false);
+    setNewSkill({ title: '', category: [], description: '', wantsSkill: [], offeredSkill: [] });
     setErrorMessage('');
   };
 
@@ -176,8 +191,8 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
 
   const handleNewSkillChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'category' || name === 'wantsSkill' || name === 'offeredSkill') {
-      const selectedValues = Array.from(e.target.selectedOptions, (option) => option.value);
+    if (name === 'category' || name == 'wantsSkill' || name === 'offeredSkill') {
+      const selectedValues = Array.from(e.target.selectedOptions || [], (option) => option.value);
       console.log(`Updating ${name}:`, selectedValues);
       setNewSkill({
         ...newSkill,
@@ -189,13 +204,13 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
   };
 
   const handlePostNewSkill = () => {
-    const { title, category, description, wantsSkill, offeredSkill } = newSkill;
+    const { title, category, description, offeredSkill } = newSkill;
     if (!title || category.length === 0 || !description || offeredSkill.length === 0) {
       setErrorMessage('Please fill in all required fields.');
       return;
     }
-    console.log('Posting skill with data:', { title, category, description, wantsSkill, offeredSkill });
-    api.post('/skills', { title, category, description, wantsSkill, offeredSkill })
+    console.log('Posting skill with data:', { title, category, description, offeredSkill });
+    api.post('/skills', { title, category, description, wantsSkill: newSkill.wantsSkill, offeredSkill })
       .then((createdSkill) => {
         showToast(`Skill "${createdSkill.title}" posted successfully!`, 'success');
         setNewSkill({ title: '', category: [], description: '', wantsSkill: [], offeredSkill: [] });
@@ -212,6 +227,86 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
           });
       })
       .catch((err) => setErrorMessage(err.response?.data?.error || err.message));
+  };
+
+  // Custom Dropdown Component
+  const CustomDropdown = ({ name, value, onChange, options, placeholder, multiple = false }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleSelect = (optionValue) => {
+      let newValue;
+      if (multiple) {
+        if (value.includes(optionValue)) {
+          newValue = value.filter((v) => v !== optionValue);
+        } else {
+          newValue = [...value, optionValue];
+        }
+      } else {
+        newValue = [optionValue];
+      }
+      const syntheticEvent = {
+        target: {
+          name,
+          value: newValue,
+          selectedOptions: newValue.map((val) => ({ value: val })),
+        },
+      };
+      onChange(syntheticEvent);
+      if (!multiple) setIsOpen(false);
+    };
+
+    const displayText = value.length > 0
+      ? value
+        .map((val) => options.find((opt) => opt.value === val)?.label || val)
+        .join(', ')
+      : placeholder;
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={`w-full py-3 px-4 rounded-xl text-left flex justify-between items-center ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'
+            } border border-[#ff7f50] transition-all duration-200 hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-[#ff7f50]`}
+        >
+          <span>{displayText}</span>
+          <svg
+            className={`w-5 h-5 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.ul
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className={`absolute z-10 w-full mt-1 rounded-xl shadow-lg border border-white/20 max-h-60 overflow-y-auto ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-white text-gray-800'
+                }`}
+            >
+              {options.length === 0 && (
+                <li className="px-4 py-2 text-sm opacity-50">No options available</li>
+              )}
+              {options.map((option) => (
+                <li
+                  key={option.value}
+                  onClick={() => handleSelect(option.value)}
+                  className={`px-4 py-2 cursor-pointer hover:bg-[#ff7f50] hover:text-white transition-all duration-200 ${value.includes(option.value) ? 'bg-[#ff7f50] text-white' : ''
+                    }`}
+                >
+                  {option.label}
+                </li>
+              ))}
+            </motion.ul>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   };
 
   return (
@@ -235,7 +330,9 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className={`text-4xl font-extrabold mb-2 ${darkMode ? 'text-white' : 'text-[#112233]'}`}>Discover Skills</h1>
+            <h1 className={`text-4xl font-extrabold mb-2 ${darkMode ? 'text-white' : 'text-[#112233]'}`}>
+              Discover Skills
+            </h1>
             <p className={`max-w-md ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
               Find the perfect skill exchange partner
             </p>
@@ -256,10 +353,16 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
         </div>
 
         {/* Search & Filter */}
-        <div className={`mt-6 rounded-3xl p-6 border shadow-lg ${darkMode ? 'bg-[#1f2937] border-white/10' : 'bg-white border-gray-200'}`}>
+        <div
+          className={`mt-6 rounded-3xl p-6 border shadow-lg ${darkMode ? 'bg-[#1f2937] border-white/10' : 'bg-white border-gray-200'
+            }`}
+        >
           <div className="flex gap-4 mb-4 flex-wrap">
             <div className="flex-1 relative">
-              <Filter className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+              <Filter
+                className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'
+                  }`}
+              />
               <input
                 type="text"
                 placeholder="Search skills..."
@@ -306,7 +409,12 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <SkillCard skill={skill} onSwapRequest={handleSwapRequest} darkMode={darkMode} disabled={userSkills.length === 0} />
+                <SkillCard
+                  skill={skill}
+                  onSwapRequest={handleSwapRequest}
+                  darkMode={darkMode}
+                  disabled={userSkills.length === 0}
+                />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -314,12 +422,32 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-          {loadingStats && <p className={`text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>Loading stats...</p>}
+          {loadingStats && (
+            <p className={`text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>Loading stats...</p>
+          )}
           {errorStats && <p className="text-center text-red-500">Failed to load stats: {errorStats}</p>}
           {!loadingStats && !errorStats && stats && [
-            { icon: Users, title: 'Active Users', value: stats.totalUsers || 0, change: '+12% this week', gradient: 'from-[#ff7f50] to-[#ffbb91]' },
-            { icon: ArrowRightLeft, title: 'Successful Swaps', value: stats.totalSwaps || 0, change: '+8% this month', gradient: 'from-[#ff7f50] to-[#ffbb91]' },
-            { icon: Award, title: 'Avg Rating', value: stats.avgRating || '0', change: '★★★★★', gradient: 'from-[#ff7f50] to-[#ffbb91]' },
+            {
+              icon: Users,
+              title: 'Active Users',
+              value: stats.totalUsers || 0,
+              change: '+12% this week',
+              gradient: 'from-[#ff7f50] to-[#ffbb91]',
+            },
+            {
+              icon: ArrowRightLeft,
+              title: 'Successful Swaps',
+              value: stats.totalSwaps || 0,
+              change: '+8% this month',
+              gradient: 'from-[#ff7f50] to-[#ffbb91]',
+            },
+            {
+              icon: Award,
+              title: 'Avg Rating',
+              value: stats.avgRating || '0',
+              change: '★★★★★',
+              gradient: 'from-[#ff7f50] to-[#ffbb91]',
+            },
           ].map((stat, i) => (
             <StatsCard key={i} {...stat} darkMode={darkMode} />
           ))}
@@ -333,7 +461,8 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className={`rounded-3xl p-8 w-96 max-w-full shadow-lg border border-white/20 ${darkMode ? 'bg-[#1f2937]' : 'bg-white'}`}
+            className={`rounded-3xl p-8 w-96 max-w-full shadow-lg border border-white/20 ${darkMode ? 'bg-[#1f2937]' : 'bg-white'
+              }`}
           >
             <h3 className="text-2xl font-bold mb-6 text-white">Post a New Skill</h3>
             <div className="space-y-4">
@@ -343,37 +472,38 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
                 value={newSkill.title}
                 onChange={handleNewSkillChange}
                 placeholder="Skill Title"
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
+                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'
+                  } border border-[#ff7f50]`}
               />
-              <select
+              <CustomDropdown
                 name="category"
                 value={newSkill.category}
                 onChange={handleNewSkillChange}
+                options={[
+                  { value: 'development', label: 'Development' },
+                  { value: 'design', label: 'Design' },
+                  { value: 'marketing', label: 'Marketing' },
+                  { value: 'business', label: 'Business' },
+                  { value: 'creative', label: 'Creative' },
+                ]}
+                placeholder="Select Categories"
                 multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                <option value="development">Development</option>
-                <option value="design">Design</option>
-                <option value="marketing">Marketing</option>
-                <option value="business">Business</option>
-                <option value="creative">Creative</option>
-              </select>
-              <select
+              />
+              <CustomDropdown
                 name="offeredSkill"
                 value={newSkill.offeredSkill}
                 onChange={handleNewSkillChange}
+                options={userSkills.map((skill) => ({
+                  value: skill.title,
+                  label: skill.title,
+                }))}
+                placeholder="Select Offered Skills"
                 multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                {userSkills.map((skill) => (
-                  <option key={skill.id} value={skill.title}>
-                    {skill.title}
-                  </option>
-                ))}
-                {userSkills.length === 0 && <option disabled>No skills available</option>}
-              </select>
+              />
               {userSkills.length === 0 && (
-                <p className="text-yellow-500 text-sm mt-2">No skills available. Please add skills to your profile in the settings.</p>
+                <p className="text-yellow-500 text-sm mt-2">
+                  No skills available. Please add skills to your profile in the settings.
+                </p>
               )}
               {errorUserSkills && <p className="text-red-500 text-sm mt-2">{errorUserSkills}</p>}
               <textarea
@@ -382,113 +512,28 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
                 onChange={handleNewSkillChange}
                 placeholder="Skill Description"
                 rows="4"
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
+                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'
+                  } border border-[#ff7f50]`}
               />
-              <select
+              <CustomDropdown
                 name="wantsSkill"
                 value={newSkill.wantsSkill}
                 onChange={handleNewSkillChange}
+                options={[
+                  { value: 'frontend', label: 'Frontend Development' },
+                  { value: 'backend', label: 'Backend Development' },
+                  { value: 'graphicDesign', label: 'Graphic Design' },
+                  { value: 'seo', label: 'SEO' },
+                  { value: 'marketing', label: 'Digital Marketing' },
+                  { value: 'dataAnalysis', label: 'Data Analysis' },
+                  { value: 'contentWriting', label: 'Content Writing' },
+                  { value: 'javascript', label: 'JavaScript' },
+                  { value: 'python', label: 'Python' },
+                  { value: 'uiuxDesign', label: 'UI/UX Design' },
+                ]}
+                placeholder="Select Desired Skills"
                 multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                <option value="frontend">Frontend Development</option>
-                <option value="backend">Backend Development</option>
-                <option value="graphicDesign">Graphic Design</option>
-                <option value="seo">SEO</option>
-                <option value="marketing">Digital Marketing</option>
-              </select>
-            </div>
-            {errorMessage && <p className="text-red-500 text-sm mt-2">{errorMessage}</p>}
-            <div className="mt-6 flex gap-4">
-              <button
-                onClick={handlePostNewSkill}
-                className="w-full py-3 rounded-xl text-white font-semibold"
-                style={{ background: 'linear-gradient(135deg, #ff7f50, #ffbb91)' }}
-              >
-                Post Skill
-              </button>
-              <button
-                onClick={closePostSkillModal}
-                className="w-full py-3 rounded-xl text-[#ff7f50] font-semibold border-2 border-[#ff7f50] hover:bg-[#ff7f50] hover:text-white"
-              >
-                Close
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Swap Request Modal */}
-      {showPostSkillModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className={`rounded-3xl p-8 w-96 max-w-full shadow-lg border border-white/20 ${darkMode ? 'bg-[#1f2937]' : 'bg-white'}`}
-          >
-            <h3 className="text-2xl font-bold mb-6 text-white">Post a New Skill</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                name="title"
-                value={newSkill.title}
-                onChange={handleNewSkillChange}
-                placeholder="Skill Title"
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
               />
-              <select
-                name="category"
-                value={newSkill.category}
-                onChange={handleNewSkillChange}
-                multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                <option value="development">Development</option>
-                <option value="design">Design</option>
-                <option value="marketing">Marketing</option>
-                <option value="business">Business</option>
-                <option value="creative">Creative</option>
-              </select>
-              <select
-                name="offeredSkill"
-                value={newSkill.offeredSkill}
-                onChange={handleNewSkillChange}
-                multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                {userSkills.map((skill) => (
-                  <option key={skill.id} value={skill.title}>
-                    {skill.title}
-                  </option>
-                ))}
-                {userSkills.length === 0 && <option disabled>No skills available</option>}
-              </select>
-              {userSkills.length === 0 && (
-                <p className="text-yellow-500 text-sm mt-2">No skills available. Please add skills to your profile in the settings.</p>
-              )}
-              {errorUserSkills && <p className="text-red-500 text-sm mt-2">{errorUserSkills}</p>}
-              <textarea
-                name="description"
-                value={newSkill.description}
-                onChange={handleNewSkillChange}
-                placeholder="Skill Description"
-                rows="4"
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              />
-              <select
-                name="wantsSkill"
-                value={newSkill.wantsSkill}
-                onChange={handleNewSkillChange}
-                multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                <option value="frontend">Frontend Development</option>
-                <option value="backend">Backend Development</option>
-                <option value="graphicDesign">Graphic Design</option>
-                <option value="seo">SEO</option>
-                <option value="marketing">Digital Marketing</option>
-              </select>
             </div>
             {errorMessage && <p className="text-red-500 text-sm mt-2">{errorMessage}</p>}
             <div className="mt-6 flex gap-4">
@@ -517,28 +562,33 @@ const Dashboard = ({ darkMode, toggleTheme, showToast }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className={`rounded-3xl p-8 w-96 max-w-full shadow-lg border border-white/20 ${darkMode ? 'bg-[#1f2937]' : 'bg-white'}`}
+            className={`rounded-3xl p-8 w-96 max-w-full shadow-lg border border-white/20 ${darkMode ? 'bg-[#1f2937]' : 'bg-white'
+              }`}
           >
             <h3 className="text-2xl font-bold mb-6 text-white">Select Skill to Offer</h3>
             <div className="space-y-4">
-              <select
+              <CustomDropdown
                 name="offeredSkill"
                 value={selectedOfferedSkill}
-                onChange={(e) => setSelectedOfferedSkill(Array.from(e.target.selectedOptions, (option) => option.value))}
+                onChange={(e) => {
+                  const selectedValues = Array.from(e.target.selectedOptions || [], (option) => option.value);
+                  setSelectedOfferedSkill(selectedValues);
+                }}
+                options={userSkills.map((skill) => ({
+                  value: skill.title,
+                  label: skill.title,
+                }))}
+                placeholder="Select Offered Skills"
                 multiple
-                className={`w-full py-3 px-4 rounded-xl ${darkMode ? 'bg-[#2c3e50] text-white' : 'bg-gray-100 text-gray-800'} border border-[#ff7f50]`}
-              >
-                {userSkills.map((skill) => (
-                  <option key={skill.id} value={skill.title}>
-                    {skill.title}
-                  </option>
-                ))}
-                {userSkills.length === 0 && <option disabled>No skills available</option>}
-              </select>
+              />
               {userSkills.length === 0 && (
-                <p className="text-yellow-500 text-sm mt-2">No skills available. Please add skills to your profile in the settings.</p>
+                <p className="text-yellow-500 text-sm mt-2">
+                  No skills available. Please add skills to your profile in the settings.
+                </p>
               )}
-              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Requesting: {selectedSkill?.title}</p>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Requesting: {selectedSkill?.title}
+              </p>
             </div>
             {errorMessage && <p className="text-red-500 text-sm mt-2">{errorMessage}</p>}
             <div className="mt-6 flex gap-4">
