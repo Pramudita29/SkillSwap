@@ -11,9 +11,9 @@ export default defineConfig({
       key: fs.readFileSync(path.resolve('D:/skillswap-backend/cert', 'server.key')),
       cert: fs.readFileSync(path.resolve('D:/skillswap-backend/cert', 'server.crt')),
     },
-    port: 3000, // Port for local development
+    port: 5173, // Frontend runs here
     cors: {
-      origin: 'https://localhost:3000', // Ensure this matches the frontend's URL
+      origin: 'https://localhost:3000', // Backend runs on 3000
       credentials: true,
     },
   },
