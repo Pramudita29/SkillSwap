@@ -22,7 +22,7 @@ const ViewMessagesPage = ({ darkMode }) => {
     };
 
     useEffect(() => {
-        const socketConnection = io('http://localhost:3000', {
+        const socketConnection = io('https://localhost:3000', {
             withCredentials: true
         });
         setSocket(socketConnection);
